@@ -20,8 +20,7 @@ static int pollEvent(int);
 
 int main(int argc, char *argv[])
 {
-    const unsigned short port;
-    const char *ip;
+    uint16_t port;
     int running;
     int i;
     int sock;
@@ -34,14 +33,33 @@ int main(int argc, char *argv[])
     WSADATA wsa;
 #endif
 
-    if(argc != 5)
+    if(argc != 3)
     {
         (void) fprintf(stderr,
-                       "Usage: %s <server ip> "
-                       "<usbip port> "
-                       "<VNC port> "
-                       "<VNC password>\n",
+                       "Usage: %s "
+                       "<server ip> "
+                       "<server port>\n",
                        argv[0]);
+        return 1;
+    }
+
+    (void) memset(&addr, 0, sizeof addr);
+    addr.sin_family = AF_INET;
+    if(parsePort(argv[2]))
+    {
+        (void) fprintf(stderr, "Invalid port.\n");
+        return 1;
+    }
+    (void) sscanf(argv[2], "%hu", &port);
+    if(!port)
+    {
+        (void) fprintf(stderr, "Port out of range.\n");
+        return 1;
+    }
+    addr.sin_port = htons(port);
+    if(!inet_aton(argv[1], &addr.sin_addr))
+    {
+        (void) fprintf(stderr, "Invalid IP address.\n");
         return 1;
     }
 
@@ -54,18 +72,26 @@ int main(int argc, char *argv[])
     numJoy = SDL_NumJoysticks();
     if(numJoy == 0)
     {
-        fprintf(stderr, "No controller found.\n");
-	return 1;
+        (void) fprintf(stderr, "No controller found.\n");
+        return 1;
     }
     for(i = 0; i < numJoy; i++)
     {
         joy = SDL_JoystickOpen(i);
-	(void) printf("%d %s\n", i, SDL_JoystickName(joy));
-	SDL_JoystickClose(joy);
+        (void) printf("%d %s\n", i, SDL_JoystickName(joy));
+        SDL_JoystickClose(joy);
     }
-    if(getNum(num, sizeof num / sizeof *num))
+    switch(getNum(num, sizeof num / sizeof *num))
+    {
+    case 1:
         return 1;
-
+    case 2:
+	fprintf(stderr, "Must be a number.\n");
+	return 1;
+    case 3:
+	fprintf(stderr, "Too many characters.\n");
+	return 1;
+    }
     (void) sscanf(num, "%d", &padNum);
     joy = SDL_JoystickOpen(padNum);
     if(joy == NULL)
@@ -74,11 +100,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    (void) memset(&addr, 0, sizeof addr);
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(5501);
-    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
 #ifdef _WIN32
     WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
@@ -86,12 +107,12 @@ int main(int argc, char *argv[])
     if(sock < 0)
     {
         (void) fprintf(stderr, "Error creating socket.\n");
-	return 1;
+        return 1;
     }
     if(connect(sock, (struct sockaddr *) &addr, sizeof addr) < 0)
     {
         (void) fprintf(stderr, "Error establishing connection.\n");
-	return 1;
+        return 1;
     }
 
     running = 1;
@@ -119,9 +140,9 @@ static int pollEvent(int sock)
     {
         Packet p;
 
-	(void) memset(&p, 0, sizeof p);
-	running = parseEvent(&e, &p);
-	if(p.type > 0)
+        (void) memset(&p, 0, sizeof p);
+        running = parseEvent(&e, &p);
+        if(p.type > 0)
             (void) send(sock, &p, sizeof p, 0);
     }
     return running;
@@ -138,11 +159,11 @@ static int parseEvent(SDL_Event *e, Packet *p)
         running = 0;
         break;
     case SDL_JOYHATMOTION:
-	p->type = EVT_HAT;
-	p->id = e->jhat.hat;
-	p->value = e->jhat.value;
-	p->time = e->jhat.timestamp;
-	break;
+        p->type = EVT_HAT;
+        p->id = e->jhat.hat;
+        p->value = e->jhat.value;
+        p->time = e->jhat.timestamp;
+        break;
     case SDL_JOYBUTTONDOWN:
     case SDL_JOYBUTTONUP:
         p->type = EVT_BUTTON;
@@ -155,9 +176,9 @@ static int parseEvent(SDL_Event *e, Packet *p)
         p->id = e->jaxis.axis;
         p->value = e->jaxis.value;
         p->time = e->jaxis.timestamp;
-	break;
+        break;
     default:
-	p->type = -1;
+        p->type = -1;
     }
     return running;
 }
@@ -173,16 +194,10 @@ static int getNum(char *buf, size_t size)
         if(c == EOF)
             return 1;
         if(!isdigit(c))
-        {
-            fprintf(stderr, "Must be a number.\n");
-	    return 2;
-	}
+            return 2;
         *buf++ = c;
         if(buf - sbuf >= size)
-        {
-            fprintf(stderr, "Too many characters.\n");
 	    return 3;
-        }
     }
     *buf = '\0';
     return 0;

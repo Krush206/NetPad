@@ -8,3 +8,5 @@ typedef struct {
     int16_t value;
     uint32_t time;
 } Packet;
+
+extern int parsePort(char *);

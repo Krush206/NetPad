@@ -23,11 +23,12 @@ static int map_axis(uint8_t);
 static int map_button(uint8_t);
 static int setup_uinput(int *);
 
-int main(void)
+int main(int argc, char *argv[])
 {
     int fd;
     int sock;
     struct sockaddr_in addr;
+    uint16_t port;
 
     if(argc != 2)
     {

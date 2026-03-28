@@ -57,7 +57,8 @@ int main(int argc, char *argv[])
         return 1;
     }
     addr.sin_port = htons(port);
-    if(!inet_aton(argv[1], &addr.sin_addr))
+    addr.sin_addr.s_addr = inet_addr(argv[1]);
+    if(addr.sin_addr.s_addr == INADDR_NONE)
     {
         (void) fprintf(stderr, "Invalid IP address.\n");
         return 1;
@@ -143,7 +144,7 @@ static int pollEvent(int sock)
         (void) memset(&p, 0, sizeof p);
         running = parseEvent(&e, &p);
         if(p.type > 0)
-            (void) send(sock, &p, sizeof p, 0);
+            (void) send(sock, (const char *) &p, sizeof p, 0);
     }
     return running;
 }
